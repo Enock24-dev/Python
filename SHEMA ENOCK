@@ -1,0 +1,78 @@
+from flask import Flask, render_template, request, redirect, url_for
+
+app = Flask(__name__)
+
+# In-memory data structures for MVP
+submissions = {}
+ticket_counter = 1
+category_agency_mapping = {
+    "Roads and Infrastructure": "Ministry of Infrastructure",
+    "Water and Sanitation": "Water and Sanitation Corporation",
+    "Electricity Services": "Energy Utility Company",
+    "Public Safety": "National Police",
+    "Healthcare Services": "Ministry of Health",
+    "Education Services": "Ministry of Education"
+}
+admin_credentials = {"admin": "password123"}  # Basic admin authentication
+
+@app.route('/', methods=['GET', 'POST'])
+def submit_complaint():
+    global ticket_counter
+    if request.method == 'POST':
+        name = request.form['name']
+        contact = request.form.get('contact')
+        category = request.form['category']
+        description = request.form['description']
+        agency = category_agency_mapping.get(category, "Unknown Agency")
+        ticket_id = ticket_counter
+        submissions[ticket_id] = {
+            'name': name,
+            'contact': contact,
+            'category': category,
+            'description': description,
+            'agency': agency,
+            'status': 'Submitted',
+            'response': ''
+        }
+        ticket_counter += 1
+        return render_template('submission_received.html', ticket_id=ticket_id)
+    return render_template('submit_complaint.html', categories=category_agency_mapping.keys())
+
+@app.route('/track', methods=['GET', 'POST'])
+def track_status():
+    if request.method == 'POST':
+        ticket_id = int(request.form['ticket_id'])
+        submission = submissions.get(ticket_id)
+        return render_template('track_status.html', submission=submission, ticket_id=ticket_id)
+    return render_template('track_status.html')
+
+@app.route('/admin', methods=['GET', 'POST'])
+def admin_login():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        if username in admin_credentials and admin_credentials[username] == password:
+            return redirect(url_for('admin_dashboard'))
+        else:
+            return render_template('admin_login.html', error='Invalid credentials')
+    return render_template('admin_login.html')
+
+@app.route('/admin/dashboard')
+def admin_dashboard():
+    return render_template('admin_dashboard.html', submissions=submissions)
+
+@app.route('/admin/view/<int:ticket_id>', methods=['GET', 'POST'])
+def view_submission(ticket_id):
+    submission = submissions.get(ticket_id)
+    if not submission:
+        return "Submission not found."
+    if request.method == 'POST':
+        status = request.form['status']
+        response = request.form['response']
+        submission['status'] = status
+        submission['response'] = response
+        return redirect(url_for('admin_dashboard'))
+    return render_template('view_submission.html', submission=submission, ticket_id=ticket_id, statuses=['Submitted', 'Under Review', 'Addressed', 'Closed'])
+
+if __name__ == '__main__':
+    app.run(debug=True)
